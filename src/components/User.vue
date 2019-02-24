@@ -53,6 +53,7 @@
         <el-table-column prop="role_name" label="角色" width="120"></el-table-column>
         <el-table-column prop="email" label="邮箱" width="160"></el-table-column>
         <el-table-column prop="mg_state" label="状态" width="70">
+          <!-- el-table-column包装了<slot row="rowdata"></solt> -->
           <el-switch
             v-model="userdata.row.mg_state"
             slot-scope="userdata"
@@ -63,7 +64,7 @@
           <!-- 三个按钮 -->
           <template slot-scope="userdata">
             <!-- 编辑按钮 -->
-            <el-tooltip content="Top Center 提示文字" placement="top" :enterable="false">
+            <el-tooltip content="编辑用户" placement="top" :enterable="false">
               <el-button
                 type="primary"
                 icon="el-icon-edit"
@@ -72,7 +73,7 @@
               ></el-button>
             </el-tooltip>
             <!-- 删除按钮 -->
-            <el-tooltip content="Top Center 提示文字" placement="top" :enterable="false">
+            <el-tooltip content="删除用户" placement="top" :enterable="false">
               <el-button
                 type="danger"
                 icon="el-icon-delete"
@@ -81,8 +82,13 @@
               ></el-button>
             </el-tooltip>
             <!-- 设置按钮 -->
-            <el-tooltip content="Top Center 提示文字" placement="top" :enterable="false">
-              <el-button type="warning" icon="el-icon-setting" size="mini"></el-button>
+            <el-tooltip content="分配角色" placement="top" :enterable="false">
+              <el-button
+                type="warning"
+                icon="el-icon-setting"
+                size="mini"
+                @click="fenpeiDialog(userdata.row.id)"
+              ></el-button>
             </el-tooltip>
           </template>
         </el-table-column>
@@ -108,6 +114,36 @@
         <span slot="footer" class="dialog-footer">
           <el-button @click="editDialogVisible = false">取 消</el-button>
           <el-button type="primary" @click="editUser">确 定</el-button>
+        </span>
+      </el-dialog>
+      <!-- 分配角色对话框 -->
+      <el-dialog
+        title="分配角色"
+        :visible.sync="fenpeiDialogVisible"
+        width="50%"
+        @close="fenpeiDialogClose"
+      >
+        <el-form
+          :rules="fenpeiFormRules"
+          ref="fenpeiFormRef"
+          :model="fenpeiForm"
+          label-width="120px"
+        >
+          <el-form-item prop="username" label="当前用户">{{fenpeiForm.username}}</el-form-item>
+          <el-form-item prop="rid" label="分配的角色">
+            <el-select v-model="fenpeiForm.rid" clearable placeholder="请选择">
+              <el-option
+                v-for="item in roleInfos"
+                :key="item.id"
+                :label="item.roleName"
+                :value="item.id"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+          <el-button @click="fenpeiDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="clmfenpei">确 定</el-button>
         </span>
       </el-dialog>
       <!-- 分页 -->
@@ -178,6 +214,16 @@ export default {
           { required: true, message: '请输入手机号', trigger: 'blur' },
           { validator: checkMobile, trigger: 'blur' }
         ]
+      },
+      roleInfos: [],
+      fenpeiDialogVisible: false,
+      fenpeiFormRules: {
+        rid: [{ required: true, message: '角色必选', trigger: 'change' }]
+      },
+      fenpeiForm: {
+        id: 0,
+        username: '',
+        rid: 0
       }
     }
   },
@@ -187,7 +233,6 @@ export default {
       const { data: res } = await this.$http.get('users', {
         params: this.querycdt
       })
-      console.log(res)
       if (res.meta.status !== 200) return this.$message.error(res.meta.msg)
       this.userInfos = res.data.users
       this.querycdt.tot = res.data.total
@@ -221,7 +266,6 @@ export default {
     addUser() {
       this.$refs.addFormRef.validate(async valid => {
         if (valid) {
-          console.log('4')
           const { data: res } = await this.$http.post('users', this.addForm)
           if (res.meta.status !== 201) {
             return this.$message.error(res.meta.msg)
@@ -243,6 +287,10 @@ export default {
           const { data: res } = await this.$http.delete('users/' + id)
           if (res.meta.status !== 200) return this.$message.error(res.meta.msg)
           this.$message.success(res.meta.msg)
+          // 如果当前页只有一条数据，删除后页码 -1
+          if (this.userInfos.length === 1 && this.querycdt.pagenum > 1) {
+            this.querycdt.pagenum--
+          }
           this.getUserInfos()
         })
         .catch(() => {})
@@ -268,14 +316,40 @@ export default {
       this.$message.success(res.meta.msg)
       this.editDialogVisible = false
       this.getUserInfos()
+    },
+    // 显示分配角色
+    async fenpeiDialog(id) {
+      this.fenpeiDialogVisible = true
+      const { data: res } = await this.$http.get('users/' + id)
+      if (res.meta.status !== 200) return this.$message.error(res.meta.msg)
+      this.fenpeiForm = res.data
+      if (this.fenpeiForm.rid === 0) {
+        this.fenpeiForm.rid = ''
+      }
+      const { data: res2 } = await this.$http.get('roles')
+      if (res2.meta.status !== 200) return this.$message.error(res.meta.msg)
+      this.roleInfos = res2.data
+    },
+    clmfenpei() {
+      this.$refs.fenpeiFormRef.validate(async valid => {
+        if (valid) {
+          const { data: res } = await this.$http.put(
+            'users/' + this.fenpeiForm.id + '/role',
+            this.fenpeiForm
+          )
+          if (res.meta.status !== 200) return this.$message.error(res.meta.msg)
+          this.fenpeiDialogVisible = false
+          this.getUserInfos()
+          this.$message.success(res.meta.msg)
+        }
+      })
+    },
+    fenpeiDialogClose() {
+      this.$refs.fenpeiFormRef.resetFields()
     }
   }
 }
 </script>
 
 <style lang="less" scoped>
-.el-table {
-  margin-top: 15px;
-  font-size: 12px;
-}
 </style>
