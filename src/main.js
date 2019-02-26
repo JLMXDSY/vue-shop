@@ -7,10 +7,13 @@ import './assets/css/global.css'
 import './assets/fonts/iconfont.css'
 // 引入element组件模块
 import ElementUI from 'element-ui'
+// 引入树表格模块
+import ZkTable from 'vue-table-with-tree-grid'
 
 // 引入axios并配置
 import axios from 'axios'
 axios.defaults.baseURL = 'http://127.0.0.1:8888/api/private/v1/'
+
 // axios 请求拦截器
 axios.interceptors.request.use(
   function(config) {
@@ -28,6 +31,8 @@ Vue.prototype.$http = axios
 
 // 注册element组件给vue
 Vue.use(ElementUI)
+// 注册树表格给vue
+Vue.use(ZkTable)
 
 Vue.config.productionTip = false
 
